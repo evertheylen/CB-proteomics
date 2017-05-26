@@ -1,5 +1,4 @@
 
-import sys
 import math
 import random
 import heapq
@@ -7,15 +6,15 @@ import heapq
 from Bio import SeqIO
 
 from .etc import *
-from .io import *
+from .util import *
 
 
-def load_sample(fname):
+def load_peaks(fname):
     with open(fname) as f:
-        return sorted(float(l.strip()) for l in f.readlines() if not l.isspace())
+        return sorted(float(l) for l in nice_lines(f))
 
 
-def score(sample, weights, tolerance=1.2):
+def shared_peak(sample, weights, tolerance=1.2):
     i = 0
     j = 0
     score = 0
@@ -28,28 +27,31 @@ def score(sample, weights, tolerance=1.2):
         else:
             j += 1
     
-    return score/len(weights)
+    return score
 
+def relative_shared_peak(sample, weights, tolerance=1.2):
+    return shared_peak(sample, weights, tolerance)/len(weights)
 
 class ProteinDB:
-    def __init__(self, fname=data_loc('uniprot_sprot_human.fasta'), missed_cleavages=0):
+    default_file = data_loc('uniprot_sprot_human.fasta')
+    
+    def __init__(self, fname=None, missed_cleavages=0):
+        fname = fname or self.default_file
         self.proteins = list(SeqIO.parse(fname, 'fasta'))
-        
-        for prot in self.proteins:
+        for prot in progress_bar(self.proteins, 'Loading proteins'):
             prot.chunks = trypsine(prot.seq, missed_cleavages)
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10):
-        scored = [(p, score(sample, p.weights)) for p in self.proteins]
+        scored = [(p, relative_shared_peak(sample, p.weights)) for p in self.proteins]
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
 
 
 if __name__ == '__main__':
-    sample = load_sample(sys.argv[1])
+    import sys
+    sample = load_peaks(sys.argv[1])
     db = ProteinDB()
-    scores = db.find_best_proteins(sample)
-    for r, score in scores:
-        print('{: <30} {}'.format(r.id, score))
+    print_scores(db.find_best_proteins(sample), lambda r: r.id)
 
 
 
@@ -61,8 +63,8 @@ class MS1Test(unittest.TestCase):
     @unittest.skip('Skipping long test')
     def test_HYEP(self):
         db = ProteinDB()
-        sample = load_sample(data_loc('PMF1.txt'))
-        (r, score), = self.db.find_best_matches(sample, 1)
+        sample = load_peaks(data_loc('PMF1.txt'))
+        (r, score), = db.find_best_proteins(sample, 1)
         self.assertEqual(r.id, 'sp|P07099|HYEP_HUMAN')
         self.assertAlmostEqual(score, 0.29545454545454547)
 

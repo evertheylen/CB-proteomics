@@ -1,5 +1,16 @@
 
 import unittest
+import sys
+
+# Monkey patching
+if "--all" in sys.argv:
+    def no_skip(description):
+        def wrapper(func):
+            return func
+        return wrapper
+    unittest.skip = no_skip
+    
+    sys.argv.remove("--all")
 
 from .etc import *
 from .io import *
