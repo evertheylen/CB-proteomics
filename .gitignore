@@ -1,3 +1,13 @@
+# Own binary files
+*.db
+
+# No raw data in git please :)
+data/*
+mascot_results/*
+
+# Basically, no binary data, ever
+*.pdf
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
