@@ -13,7 +13,7 @@ if "--all" in sys.argv:
     sys.argv.remove("--all")
 
 from .etc import *
-from .io import *
+from .util import *
 from .MS1 import *
 from .MS2 import *
 

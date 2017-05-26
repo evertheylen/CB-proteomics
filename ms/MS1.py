@@ -3,8 +3,6 @@ import math
 import random
 import heapq
 
-from Bio import SeqIO
-
 from .etc import *
 from .util import *
 
@@ -32,14 +30,14 @@ def shared_peak(sample, weights, tolerance=1.2):
 def relative_shared_peak(sample, weights, tolerance=1.2):
     return shared_peak(sample, weights, tolerance)/len(weights)
 
-class ProteinDB:
+class ProteinDB(Pickled):
     default_file = data_loc('uniprot_sprot_human.fasta')
     
     def __init__(self, fname=None, missed_cleavages=0):
         fname = fname or self.default_file
-        self.proteins = list(SeqIO.parse(fname, 'fasta'))
+        self.proteins = read_fasta(fname)
         for prot in progress_bar(self.proteins, 'Loading proteins'):
-            prot.chunks = trypsine(prot.seq, missed_cleavages)
+            prot.chunker = trypsine(missed_cleavages)
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10):
@@ -51,7 +49,7 @@ if __name__ == '__main__':
     import sys
     sample = load_peaks(sys.argv[1])
     db = ProteinDB()
-    print_scores(db.find_best_proteins(sample), lambda r: r.id)
+    print_scores(db.find_best_proteins(sample), lambda r: r.name)
 
 
 

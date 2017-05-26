@@ -1,12 +1,5 @@
 
-try:
-    import cPickle as pickle
-    print("using cPickle instead of pickle")
-except ImportError:
-    import pickle
-
 import heapq
-from Bio import SeqIO
 
 from .etc import *
 from .util import *
@@ -57,7 +50,7 @@ class MS2Spectrum:
 
 
 def create_ion(_extra_mass, reverse):
-    '''Creates functions that return the masses of the fragments after
+    '''Creates a function that returns the masses of the fragments after
     MS2 fragmentation by some ion.'''
     
     if reverse:
@@ -74,14 +67,10 @@ y_ion = create_ion(water + proton, True)
 b_ion = create_ion(proton, False)
 
 
-class SomeClass:
-    def bla(self):
-        print("bar")
-
-class ProteinDB2:
+class ProteinDB2(Pickled):
     default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
     
-    def __init__(self, fname = None, missed_cleavages=1, ion=b_ion):
+    def __init__(self, fname = None, missed_cleavages=1, ion=y_ion):
         fname = fname or self.default_file
         self.db1 = ProteinDB(fname, missed_cleavages)
         self.proteins = self.db1.proteins
@@ -91,21 +80,9 @@ class ProteinDB2:
         for prot in progress_bar(self.proteins, 'Splitting in ions'):
             for peptide in prot.chunks:
                 if peptide not in self.tandem:
+                    #continue
                     self.tandem[peptide] = ion(peptide)
                     #self.tandem_inference[peptide].add(prot)
-    
-    def save(self, fname = None):
-        with open(fname or self._loaded_from, 'wb') as f:
-            pickle.dump(self, f)
-    
-    @classmethod
-    @simple_progress('Loading DB from file')
-    def load(cls, fname):
-        with open(fname, 'rb') as f:
-            data = pickle.load(f)
-        data.__class__ = cls
-        data._loaded_from = fname
-        return data
     
     def find_best_proteins(self, sample: list, amount=10):
         raise NotImplemented("Protein inference isn't implemented")
@@ -127,7 +104,7 @@ if __name__ == '__main__':
         db = ProteinDB2.load('ms2.db')
         save = False
     except Exception as e:
-        print("Couldn't load ms2.db, creating a new one")
+        print("Couldn't load ms2.db ({}), creating a new one".format(e))
         save = True
         db = ProteinDB2()
     
