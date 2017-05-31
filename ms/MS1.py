@@ -33,15 +33,16 @@ def relative_shared_peak(sample, weights, tolerance=1.2):
 class ProteinDB(Pickled):
     default_file = data_loc('uniprot_sprot_human.fasta')
     
-    def __init__(self, fname=None, missed_cleavages=0):
+    def __init__(self, fname=None, missed_cleavages=0, reverse=False):
         fname = fname or self.default_file
-        self.proteins = read_fasta(fname)
-        for prot in progress_bar(self.proteins, 'Loading proteins'):
+        self.proteins = list(map((reversed if reverse else identity), read_fasta(fname)))
+        
+        for prot in progress_bar(self.proteins, 'Loading proteins' + (' in reverse' if reverse else '')):
             prot.chunker = trypsine(missed_cleavages)
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
-    def find_best_proteins(self, sample, amount=10):
-        scored = [(p, relative_shared_peak(sample, p.weights)) for p in self.proteins]
+    def find_best_proteins(self, sample, amount=10, tolerance=1.2):
+        scored = [(p, relative_shared_peak(sample, p.weights, tolerance)) for p in self.proteins]
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
 
 

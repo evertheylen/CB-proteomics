@@ -24,20 +24,22 @@ def nice_lines(f):
 # Output (both terminal and files)
 # ================================
 
+from .table import as_rest_table
+
 def print_scores(scores, title=str):
-    print('\n    # |   score   | name')
-    print(  '------+-----------+---------------------')
-    for i, (r, score) in enumerate(scores):
-        print('{: >5} | {:.7f} | {}'.format(i+1, score, title(r)))
+    print('')
+    data = [('#', 'score', 'name')]
+    data += [(i+1, sc[1], sc[0]) for i, sc in enumerate(scores)]
+    print(as_rest_table(data))
     print('')
 
 
-def progress_bar(l, text, size=40):
+def progress_bar(l, text, length=None, size=40):
     """Shows a progress bar while iterating over a list.
     Avoids printing all the time and making your program IO-bound.
     """
     
-    modulo = round(len(l)/size)
+    modulo = round((length or len(l))/size)
     progress = 0
     for i, item in enumerate(l):
         if i%modulo == 0:
@@ -97,10 +99,37 @@ class Pickled:
 
 
 
-# Various utilities
-# =================
+# Various utilities (kind of my own copy-paste standard library)
+# ==============================================================
+
+identity = lambda x: x
 
 from collections import defaultdict
+
+class GeneratorLength:
+    def __init__(self, g, l):
+        self.g = g
+        self.l = l
+    
+    def __iter__(self):
+        return self.g
+    
+    def __len__(self):
+        return self.l
+    
+    def __getattr__(self, item):
+        return getattr(self.g, item)
+
+
+def generator_length(_len_func):
+    def decorator(func, len_func=_len_func):
+        @wraps(func)
+        def wrapper(*a, **kw):
+            gen = func(*a, **kw)
+            return GeneratorLength(gen, len_func(*a, **kw))
+        return wrapper
+    return decorator
+
 
 class multimap(defaultdict):
     def __init__(self, *a, **kw):

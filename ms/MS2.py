@@ -1,16 +1,32 @@
 
 import heapq
+from itertools import repeat, chain
 
 from .etc import *
 from .util import *
 from .MS1 import ProteinDB, shared_peak
 
 
+def weighted_shared_peaks(sample, weights, tolerance=1.2):
+    i = 0
+    j = 0
+    score = 0
+    while i != len(sample) and j != len(weights):
+        if abs(sample[i][0] - weights[j]) <= tolerance:
+            score += 1 #sample[i][1]
+        
+        if (sample[i][0] < weights[j] and not i == len(weights)-1) or j == len(weights)-1:
+            i += 1
+        else:
+            j += 1
+    
+    return score
+
 class MS2Spectrum:
     def __init__(self, title, pepmass, peaks, **kwargs):
         self.title = title
         self.pepmass = pepmass
-        self.peaks = sorted(peaks)  #, key=lambda t: t[0])
+        self.peaks = sorted(peaks, key=lambda t: t[0])
     
     @staticmethod
     def key_value(line):
@@ -38,8 +54,8 @@ class MS2Spectrum:
                             metadata[kv[0]] = kv[1]
                         else:
                             location, intensity = peak.split()
-                            #peaks.append((float(location.strip()), float(intensity.strip())))
-                            peaks.append(float(location.strip()))
+                            peaks.append((float(location.strip()), float(intensity.strip())))
+                            #peaks.append(float(location.strip()))
                     
                     spectra.append(cls(metadata.pop('TITLE'), metadata.pop('PEPMASS'),
                                        peaks, **metadata))
@@ -66,42 +82,56 @@ def create_ion(_extra_mass, reverse):
 y_ion = create_ion(water + proton, True)
 b_ion = create_ion(proton, False)
 
+class Ionizer:
+    # In the future, more ionizers can be added
+    def __init__(self, ions=(b_ion, y_ion)):
+        self.ions = ions
+    
+    def __call__(self, seq):
+        return sum((ion(seq) for ion in self.ions), [])
+
 
 class ProteinDB2(Pickled):
     default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
     
-    def __init__(self, fname = None, missed_cleavages=1, ion=y_ion):
+    def __init__(self, fname = None, missed_cleavages=1, ionizer=Ionizer()):
         fname = fname or self.default_file
-        self.db1 = ProteinDB(fname, missed_cleavages)
-        self.proteins = self.db1.proteins
+        self.targets = ProteinDB(fname, missed_cleavages).proteins
+        self.decoys = ProteinDB(fname, missed_cleavages, reverse=True).proteins
         # We already know the peptides, now we have to cut it up once more
         self.tandem = {}
         #self.tandem_inference = multimap()
-        for prot in progress_bar(self.proteins, 'Splitting in ions'):
+        for target, prot in progress_bar(self.marked_proteins(), 'Splitting in ions'):
             for peptide in prot.chunks:
                 if peptide not in self.tandem:
-                    #continue
-                    self.tandem[peptide] = ion(peptide)
+                    self.tandem[peptide] = (target, ionizer(peptide))
                     #self.tandem_inference[peptide].add(prot)
+    
+    @generator_length(lambda self: len(self.targets) + len(self.decoys))
+    def marked_proteins(self):
+        yield from zip(repeat(True), self.targets)
+        yield from zip(repeat(False), self.decoys)
     
     def find_best_proteins(self, sample: list, amount=10):
         raise NotImplemented("Protein inference isn't implemented")
     
-    def find_best_peptides(self, sample: list, amount=10, minlen=20):
-        scores = []
-        for pep, weights in progress_bar(self.tandem.items(), "Calculating scores"):
-            if len(pep) > minlen:
-                for spec in sample:
-                    scores.append((pep, shared_peak(weights, spec.peaks, 1.2)))
-        return heapq.nlargest(amount, scores, key=lambda t: t[1])
+    def peptides_scores(self, sample, tolerance, title="Calculating scores"):
+        for pep, (target, weights) in progress_bar(self.tandem.items(), title):
+            for spec in sample:
+                yield (('TARGET' if target else 'DECOY ') + ' ' + pep, 
+                       weighted_shared_peaks(spec.peaks, weights, tolerance))
+    
+    def find_best_peptides(self, sample: list, amount=10, tolerance=0.6):
+        return heapq.nlargest(amount, self.peptides_scores(sample, tolerance), key=lambda t: t[1])
 
 
 
 if __name__ == '__main__':
+    db_loc = 'ms2.db'
     import sys
     sample = MS2Spectrum.load_spectra(sys.argv[1], 2)
     try:
-        db = ProteinDB2.load('ms2.db')
+        db = ProteinDB2.load(db_loc)
         save = False
     except Exception as e:
         print("Couldn't load ms2.db ({}), creating a new one".format(e))
@@ -111,9 +141,10 @@ if __name__ == '__main__':
     try:
         print_scores(db.find_best_peptides(sample))
     except Exception as e:
-        db.save()
+        if save:
+            db.save(db_loc)
         raise e
     
     if save:
-        db.save('ms2.db')
+        db.save(db_loc)
 

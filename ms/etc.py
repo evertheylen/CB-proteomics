@@ -74,11 +74,13 @@ class Sequence:
     def chunks(self):
         yield from self.chunker(self.seq)
     
+    def __reversed__(self):
+        return Sequence(self.name, list(reversed(self.seq)), chunker=self.chunker)
+    
     __slots__ = ('name', 'seq', 'chunker', 'weights')
     
 
 def read_fasta(filename):
-    sequences = []
     buf = ""
     name = ""
     with open(filename) as f:
@@ -86,14 +88,13 @@ def read_fasta(filename):
             if len(l) > 0:
                 if l[0] == ">":
                     if buf != "":
-                        sequences.append(Sequence(name.strip(), buf))
+                        yield Sequence(name.strip(), buf)
                         buf = ""
                     name = l[1:]
                 else:
                     buf += l[:-1]
     if buf != "":
-        sequences.append(Sequence(name.strip(), buf))
-    return sequences
+        yield Sequence(name.strip(), buf)
 
 
 # Tests
