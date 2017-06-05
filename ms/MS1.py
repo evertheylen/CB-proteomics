@@ -5,8 +5,7 @@ import math
 import random
 import heapq
 
-from .etc import *
-from .util import *
+from ms.util import *
 
 
 def load_peaks(fname):
@@ -31,6 +30,7 @@ def shared_peak(sample, weights, tolerance=1.2):
 
 def relative_shared_peak(sample, weights, tolerance=1.2):
     return shared_peak(sample, weights, tolerance)/len(weights)
+
 
 class ProteinDB(Pickled):
     default_file = data_loc('uniprot_sprot_human.fasta')

@@ -1,121 +1,175 @@
-"""Various biology-related utilities and data, like FASTA parsing and trypsine.
-"""
 
-from .util import memoize
+import os
+from functools import wraps
 
-amino_weights = {
-    'A': 71.037,
-    'R': 156.101,
-    'N': 114.043,
-    'D': 115.027,
-    'C': 103.009,
-    'E': 129.043,
-    'Q': 128.059,
-    'G': 57.021,
-    'H': 137.059,
-    'I': 113.084,
-    'L': 113.084,
-    'K': 128.095,
-    'M': 131.040,
-    'F': 147.068,
-    'P': 97.053,
-    'S': 87.032,
-    'T': 101.048,
-    'W': 186.079,
-    'Y': 163.063,
-    'V': 99.068,
-    'U': 0
-}
+try:
+    import cPickle as pickle
+    print("using cPickle instead of pickle")
+except ImportError:
+    import pickle
 
-water = 18.011
-proton = 1.007
 
-class _trypsine:
-    def __init__(self, missed_cleavages=0):
-        self.missed_cleavages = missed_cleavages
+# Input (both terminal and files)
+# ===============================
+
+def data_loc(location):
+    return os.path.join(os.path.dirname(__file__), '../data', location)
+
+def nice_lines(f):
+    for l in f.readlines():
+        if not l.isspace():
+            yield l.strip()
+
+
+# Output (both terminal and files)
+# ================================
+
+from .table import as_rest_table
+
+def print_scores(scores, title=str):
+    print('')
+    data = [('#', 'score', 'name')]
+    data += [(i+1, sc[1], sc[0]) for i, sc in enumerate(scores)]
+    print(as_rest_table(data))
+    print('')
+
+
+def progress_bar(l, text, length=None, size=40):
+    """Shows a progress bar while iterating over a list.
+    Avoids printing all the time and making your program IO-bound.
+    """
     
-    def __call__(self, seq):
-        'Cleaves after K or R unless they are followed by P'
-        buf = ''
-        chunks = []
-        
-        for i in range(len(seq)-1):
-            buf += seq[i]
-            if (seq[i] == 'R' or seq[i] == 'K') and not (seq[i+1] == 'P'):
-                chunks.append(buf)
-                buf = ''
-        
-        buf += seq[-1]
-        chunks.append(buf)
-        yield from chunks
-        
-        for length in range(1, self.missed_cleavages+1):
-            for i in range(len(chunks)-length):
-                yield ''.join(chunks[i:i+length+1])
+    modulo = round((length or len(l))/size)
+    progress = 0
+    for i, item in enumerate(l):
+        if i%modulo == 0:
+            print(progress_bar_start.format(text) + '#'*progress + ' '*(size-progress) + ']', end='', flush=True)
+            progress += 1
+        yield item
+    print(progress_end.format(text) + ' '*size)
 
-@memoize
-def trypsine(missed_cleavages=0):
-    return _trypsine(missed_cleavages)
+progress_bar_start = '\r{: <40}  ['
+progress_start     = '\r{: <40}  ... '
+progress_end       = '\r{: <40}  Done. '
 
-def peptide_weight(seq):
-    return sum(amino_weights[c] for c in seq) + water + proton
-
-
-
-# Replaced the BioPython dependency with this, so no libraries are used.
-# This means we can use PyPy and (hopefully) gain a considerable speedup.
-
-class Sequence:
-    def __init__(self, name, seq, weights=None, chunker=lambda s: [s]):
-        self.name = name
-        self.seq = seq
-        self.weights = weights
-        self.chunker = chunker
+def simple_progress(text):
+    """Similar to `progress_bar`, but for when you want to wait on the result of a function
+    instead of monitoring a for loop. Therefore, this is a decorator.
+    """
     
-    @property
-    def chunks(self):
-        yield from self.chunker(self.seq)
-    
-    def __reversed__(self):
-        return Sequence(self.name, list(reversed(self.seq)), chunker=self.chunker)
-    
-    __slots__ = ('name', 'seq', 'chunker', 'weights')
-    
-
-def read_fasta(filename):
-    buf = ""
-    name = ""
-    with open(filename) as f:
-        for l in f.readlines():
-            if len(l) > 0:
-                if l[0] == ">":
-                    if buf != "":
-                        yield Sequence(name.strip(), buf)
-                        buf = ""
-                    name = l[1:]
-                else:
-                    buf += l[:-1]
-    if buf != "":
-        yield Sequence(name.strip(), buf)
+    def decorator(func):
+        @wraps(func)
+        def new_func(*a, **kw):
+            print(progress_start.format(text), end='')
+            res = func(*a, **kw)
+            print(progress_end.format(text))
+            return res
+        return new_func
+    return decorator
 
 
-# Tests
+# Pickling help
+# =============
 
-import unittest
+class Pickled:
+    def save(self, fname = None):
+        fname = fname or self._loaded_from
+        text = 'Saving {} to {}'.format(type(self).__name__, fname)
+        print(progress_start.format(text), end='')
+        import gc
+        with open(fname, 'wb') as f:
+            gc.disable()
+            pickle.dump(self, f, pickle.HIGHEST_PROTOCOL)
+            gc.enable()
+        print(progress_end.format(text))
+    
+    @classmethod
+    def load(cls, fname):
+        text = 'Loading {} from {}'.format(cls.__name__, fname)
+        print(progress_start.format(text), end='')
+        import gc
+        with open(fname, 'rb') as f:
+            gc.disable()
+            data = pickle.load(f)
+            gc.enable()
+        data.__class__ = cls
+        data._loaded_from = fname
+        print(progress_end.format(text))
+        return data
 
-class Trypsine(unittest.TestCase):
-    def test_basic(self):
-        chunks = list(trypsine('GARFIELDDEKARPER'))
-        self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER'])
+
+
+# Various utilities (kind of my own copy-paste standard library)
+# ==============================================================
+
+identity = lambda x: x
+
+from collections import defaultdict
+
+class GeneratorLength:
+    def __init__(self, g, l):
+        self.g = g
+        self.l = l
     
-    def test_1_missed_cleavages(self):
-        chunks = list(trypsine('GARFIELDDEKARPER', 1))
-        self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER',
-                                  'GARFIELDDEK', 'FIELDDEKARPER'])
+    def __iter__(self):
+        return self.g
     
-    def test_2_missed_cleavages(self):
-        chunks = list(trypsine('GARFIELDDEKARPER', 2))
-        self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER',
-                                  'GARFIELDDEK', 'FIELDDEKARPER',
-                                  'GARFIELDDEKARPER'])
+    def __len__(self):
+        return self.l
+    
+    def __getattr__(self, item):
+        return getattr(self.g, item)
+
+
+def generator_length(_len_func):
+    def decorator(func, len_func=_len_func):
+        @wraps(func)
+        def wrapper(*a, **kw):
+            gen = func(*a, **kw)
+            return GeneratorLength(gen, len_func(*a, **kw))
+        return wrapper
+    return decorator
+
+
+class multimap(defaultdict):
+    def __init__(self, *a, **kw):
+        super().__init__(set, *a, **kw)
+    
+    def flat_items(self):
+        for k, values in self.items():
+            for v in values:
+                yield k, v
+                
+    def flat_values(self):
+        for values in self.values():
+            for v in values:
+                yield v
+    
+    def flat_len(self):
+        s = 0
+        for v in self.values():
+            s += len(v)
+        return s
+    
+    def flatten(self):
+        d = {}
+        for k, v in self.items():
+            if len(v) != 1:
+                raise NotFlat(v)
+            d[k] = v.pop()
+        return d
+
+
+def memoize(f):
+    """Memoization decorator for functions taking one or more arguments."""
+    # Source: https://code.activestate.com/recipes/578231-probably-the-fastest-memoization-decorator-in-the-/#c1
+    class memodict(dict):
+        def __init__(self, f):
+            self.f = f
+        def __call__(self, *args):
+            return self[args]
+        def __missing__(self, key):
+            ret = self[key] = self.f(*key)
+            return ret
+    return memodict(f)
 

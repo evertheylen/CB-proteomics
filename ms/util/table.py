@@ -1,7 +1,7 @@
 import string
 
 # taken from https://code.activestate.com/recipes/579054-generate-sphinx-table/
-# License = MIT
+# License: MIT
 
 def as_rest_table(data, full=False):
     """
