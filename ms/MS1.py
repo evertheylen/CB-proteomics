@@ -1,3 +1,5 @@
+"""MS1 scoring, database and tests
+"""
 
 import math
 import random
@@ -42,7 +44,7 @@ class ProteinDB(Pickled):
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10, tolerance=1.2):
-        scored = [(p, relative_shared_peak(sample, p.weights, tolerance)) for p in self.proteins]
+        scored = ((p, relative_shared_peak(sample, p.weights, tolerance)) for p in self.proteins)
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
 
 

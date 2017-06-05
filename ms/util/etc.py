@@ -1,3 +1,5 @@
+"""Various biology-related utilities and data, like FASTA parsing and trypsine.
+"""
 
 from .util import memoize
 
