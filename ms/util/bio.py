@@ -1,7 +1,7 @@
 """Various biology-related utilities and data, like FASTA parsing and trypsine.
 """
 
-from .util import memoize
+from .etc import memoize
 
 amino_weights = {
     'A': 71.037,
@@ -105,16 +105,16 @@ import unittest
 
 class Trypsine(unittest.TestCase):
     def test_basic(self):
-        chunks = list(trypsine('GARFIELDDEKARPER'))
+        chunks = list(trypsine(0)('GARFIELDDEKARPER'))
         self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER'])
     
     def test_1_missed_cleavages(self):
-        chunks = list(trypsine('GARFIELDDEKARPER', 1))
+        chunks = list(trypsine(1)('GARFIELDDEKARPER'))
         self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER',
                                   'GARFIELDDEK', 'FIELDDEKARPER'])
     
     def test_2_missed_cleavages(self):
-        chunks = list(trypsine('GARFIELDDEKARPER', 2))
+        chunks = list(trypsine(2)('GARFIELDDEKARPER'))
         self.assertEqual(chunks, ['GAR', 'FIELDDEK', 'ARPER',
                                   'GARFIELDDEK', 'FIELDDEKARPER',
                                   'GARFIELDDEKARPER'])

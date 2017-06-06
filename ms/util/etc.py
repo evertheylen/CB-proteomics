@@ -13,7 +13,8 @@ except ImportError:
 # ===============================
 
 def data_loc(location):
-    return os.path.join(os.path.dirname(__file__), '../data', location)
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir,
+                                        os.pardir, 'data', location))
 
 def nice_lines(f):
     for l in f.readlines():
@@ -29,7 +30,7 @@ from .table import as_rest_table
 def print_scores(scores, title=str):
     print('')
     data = [('#', 'score', 'name')]
-    data += [(i+1, sc[1], sc[0]) for i, sc in enumerate(scores)]
+    data += [(i+1, sc[1], title(sc[0])) for i, sc in enumerate(scores)]
     print(as_rest_table(data))
     print('')
 

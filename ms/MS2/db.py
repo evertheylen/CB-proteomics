@@ -5,6 +5,7 @@ import heapq
 
 from ms.util import *
 from ms.MS1 import ProteinDB
+from .spectra import *
 
 def create_ion(_extra_mass, reverse):
     '''Creates a function that returns the masses of the fragments 
@@ -34,7 +35,8 @@ class Ionizer:
 
 
 class ProteinDB2(Pickled):
-    default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
+    #default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
+    default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016-small.fasta')
     
     def __init__(self, fname = None, missed_cleavages=1, ionizer=Ionizer()):
         fname = fname or self.default_file
@@ -42,15 +44,14 @@ class ProteinDB2(Pickled):
         self.decoys = ProteinDB(fname, missed_cleavages, reverse=True).proteins
         # We already know the peptides, now we have to cut it up once more
         self.tandem = {}
-        self._process_proteins(self.targets.proteins, 'TARGET')
-        self._process_proteins(self.decoys.proteins, 'DECOY ')
+        self._process_proteins(self.targets, 'TARGET', ionizer)
+        self._process_proteins(self.decoys, 'DECOY ', ionizer)
     
-    def _process_proteins(self, proteins, tag):
+    def _process_proteins(self, proteins, tag, ionizer):
         for prot in progress_bar(proteins, 'Splitting in ions, tagged `{}`'.format(tag)):
             for peptide in prot.chunks:
                 if peptide not in self.tandem:
-                    title = tag + ' ' + pep
-                    self.tandem[peptide] = TheoMs2Spectrum(title = tag + ' ',
+                    self.tandem[peptide] = TheoMs2Spectrum(title = tag + ' ' + peptide,
                                                            pepmass = peptide_weight(peptide),
                                                            peaks = ionizer(peptide))
     
@@ -66,4 +67,4 @@ class ProteinDB2(Pickled):
                 yield (tspec.title, scorer.score(tspec, espec))
     
     def find_best_peptides(self, sample: list, scorer, amount=10):
-        return heapq.nlargest(amount, self.peptides_scores(sample, tolerance), key=lambda t: t[1])
+        return heapq.nlargest(amount, self.peptides_scores(sample, scorer), key=lambda t: t[1])

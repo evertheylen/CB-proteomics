@@ -2,6 +2,9 @@
 """
 
 import math
+"""MS1 implementation. Unlike MS2, it's simple enough to be contained in a single file.
+"""
+
 import random
 import heapq
 
@@ -44,7 +47,8 @@ class ProteinDB(Pickled):
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10, tolerance=1.2):
-        scored = ((p, relative_shared_peak(sample, p.weights, tolerance)) for p in self.proteins)
+        scored = ((p, relative_shared_peak(sample, p.weights, tolerance)) 
+                  for p in progress_bar(self.proteins, 'Scoring proteins'))
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
 
 
@@ -52,7 +56,7 @@ if __name__ == '__main__':
     import sys
     sample = load_peaks(sys.argv[1])
     db = ProteinDB()
-    print_scores(db.find_best_proteins(sample), lambda r: r.name)
+    print_scores(db.find_best_proteins(sample), lambda r: r.name[:70])
 
 
 

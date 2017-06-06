@@ -23,15 +23,25 @@ class TheoMs2Spectrum(Ms2Spectrum):
         super().__init__(title, pepmass)
         self.peaks = sorted(peaks)
     
+    def plot(self):
+        import matplotlib.pyplot as plt
+        plt.stem(self.peaks, [1]*len(self.peaks))
 
 class ExpMs2Spectrum(Ms2Spectrum):
     """Experimental MS2 Spectrum
     self.peaks is a list of (location, intensity)
     """
     
+    location = lambda t: t[0]
+    intensity = lambda t: [1]
+    
     def __init__(self, title, pepmass, peaks, **kwargs):
         super().__init__(title, pepmass)
         self.peaks = sorted(peaks, key=lambda t: t[0])
+    
+    def plot(self):
+        import matplotlib.pyplot as plt
+        plt.stem([p[0] for p in self.peaks], [p[1] for p in self.peaks])
     
     # Parsing
     
