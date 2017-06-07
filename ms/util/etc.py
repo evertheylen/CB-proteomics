@@ -40,7 +40,7 @@ def progress_bar(l, text, length=None, size=40):
     Avoids printing all the time and making your program IO-bound.
     """
     
-    modulo = round((length or len(l))/size)
+    modulo = max(round((length or len(l))/size), 1)
     progress = 0
     for i, item in enumerate(l):
         if i%modulo == 0:
@@ -103,9 +103,35 @@ class Pickled:
 # Various utilities (kind of my own copy-paste standard library)
 # ==============================================================
 
+from collections import defaultdict
+
 identity = lambda x: x
 
-from collections import defaultdict
+def frange(start, end=None, stepsize=1.0):
+    if end is None:
+        end = start
+        start = 0.0
+    
+    i = start
+    while i < end:
+        yield i
+        i += stepsize
+
+
+def dot_product(x_loc: list, x_val: float, y: list, tolerance=1.0):
+    i, j = 0, 0
+    total = 0.0
+    while i != len(x_loc) and j != len(y):
+        if abs(x_loc[i] - y[j][0]) <= tolerance:
+            total += x_val * y[j][1]
+        
+        if (x_loc[i] < y[j][0] and not i == len(x_loc)-1) or j == len(y)-1:
+            i += 1
+        else:
+            j += 1
+    
+    return total
+
 
 class GeneratorLength:
     def __init__(self, g, l):

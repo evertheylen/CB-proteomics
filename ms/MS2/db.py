@@ -36,7 +36,7 @@ class Ionizer:
 
 class ProteinDB2(Pickled):
     #default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
-    default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016-small.fasta')
+    default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
     
     def __init__(self, fname = None, missed_cleavages=1, ionizer=Ionizer()):
         fname = fname or self.default_file
@@ -60,7 +60,7 @@ class ProteinDB2(Pickled):
     
     def peptides_scores(self, sample: list, scorer) -> '[(name, score)]':
         if hasattr(scorer, 'preprocess_espec'):
-            sample = [scorer.preprocess_espec(sample) for espec in progress_bar(sample, "Preprocessing sample")]
+            sample = [scorer.preprocess_espec(espec) for espec in progress_bar(sample, "Preprocessing sample")]
         
         for pep, tspec in progress_bar(self.tandem.items(), "Scoring peptides"):
             for espec in sample:
