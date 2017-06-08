@@ -27,10 +27,14 @@ def nice_lines(f):
 
 from .table import as_rest_table
 
-def print_scores(scores, title=str):
+def print_scores(scores: '[(name, score)]', title=str, normalize=True):
+    norm_factor = 1
+    if normalize:
+        norm_factor /= max(scores, key=lambda t: t[1])[1]
+    
     print('')
     data = [('#', 'score', 'name')]
-    data += [(i+1, sc[1], title(sc[0])) for i, sc in enumerate(scores)]
+    data += [(i+1, sc[1]*norm_factor, title(sc[0])) for i, sc in enumerate(scores)]
     print(as_rest_table(data))
     print('')
 

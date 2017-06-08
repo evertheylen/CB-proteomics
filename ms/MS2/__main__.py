@@ -43,4 +43,4 @@ except Exception as e:
     raise e
 
 if save:
-    db.save(db_loc)
+    db.save(args.pickled)

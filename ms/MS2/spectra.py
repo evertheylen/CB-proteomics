@@ -19,13 +19,23 @@ class TheoMs2Spectrum(Ms2Spectrum):
     self.peaks is just a list of peak locations
     """
     
+    @classmethod
+    def from_sequence(cls, s, ionizer=None):
+        # For debugging purposes
+        if ionizer is None:
+            from .db import Ionizer
+            ionizer = Ionizer()
+        return cls(title=s,
+                   pepmass=peptide_weight(s),
+                   peaks=ionizer(s))
+    
     def __init__(self, title, pepmass, peaks):
         super().__init__(title, pepmass)
         self.peaks = sorted(peaks)
     
     def plot(self):
         import matplotlib.pyplot as plt
-        plt.stem(self.peaks, [1]*len(self.peaks))
+        plt.stem(self.peaks, [100]*len(self.peaks), 'red', label=self.title)
 
 class ExpMs2Spectrum(Ms2Spectrum):
     """Experimental MS2 Spectrum
@@ -41,7 +51,7 @@ class ExpMs2Spectrum(Ms2Spectrum):
     
     def plot(self):
         import matplotlib.pyplot as plt
-        plt.stem([p[0] for p in self.peaks], [p[1] for p in self.peaks])
+        plt.stem([p[0] for p in self.peaks], [p[1] for p in self.peaks], 'blue', label=self.title)
     
     # Parsing
     

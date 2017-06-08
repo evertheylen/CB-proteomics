@@ -59,7 +59,7 @@ class Sequest(Scorer):
         self.stepsize = stepsize
         self.steps = steps
     
-    def preprocess_espec(self, espec):
+    def preprocess_espec(self, espec, compress=True):
         # Preprocessing the peaks never seems to be fully described. The most important
         # thing to do (mentioned in both papers) is normalizing the intensities in a given
         # amount of fixed windows to 50 (or 100)
@@ -97,17 +97,39 @@ class Sequest(Scorer):
         
         new_espec = ExpMs2Spectrum(espec.title, espec.pepmass, ep)
         # This is specific to Eng2008
-        new_espec.y_prime = self.y_prime(new_espec)
+        new_espec.y_prime = self.y_prime(new_espec, compress)
         return new_espec
     
-    def y_prime(self, espec):
+    def y_prime(self, espec, compress=True):
         #  y'  =  y_0 - (sum(y_t for t in [-75..-1, 1..75])/150)
         shifts = chain(frange(-self.steps * self.stepsize, 0, self.stepsize),
                        frange(self.stepsize, (self.steps+1) * self.stepsize, self.stepsize))
         resized_int = [-p[1]/(2*self.steps) for p in espec.peaks]
-        shifted = sum(([(espec.peaks[i][0]+t, resized_int[i]) for i in range(len(espec.peaks))] for t in shifts), [])
-        return sorted(espec.peaks + shifted, key=ExpMs2Spectrum.location)
-    
+        shifted = sorted(sum(([(espec.peaks[i][0]+t, resized_int[i]) for i in range(len(espec.peaks))] for t in shifts), []), key=ExpMs2Spectrum.location)
+        
+        if compress:
+            # Shifted produces way too many points. While mathematically still correct (since
+            # our dot_product is just a big sum anyway), it takes too much time. So, time for
+            # a minimum amount of 'binning'
+            locs = [shifted[0][0]]
+            total = shifted[0][1]
+            tol = self.tolerance / 10
+            binned = []
+            shifted_it = iter(shifted)
+            next(shifted_it)  # skip first without making a whole new list
+            for s in shifted_it:
+                if s[0] > locs[0] + tol:
+                    binned.append((sum(locs)/len(locs), total))
+                    locs = [s[0]]
+                    total = s[1]
+                else:
+                    locs.append(s[0])
+                    total += s[1]
+            
+            return sorted(espec.peaks + binned, key=ExpMs2Spectrum.location)
+        else:
+            return sorted(espec.peaks + shifted, key=ExpMs2Spectrum.location)
+        
     def score(self, tspec, espec):
         """
         This is basically the xcorr score. Eng2008 suggests using a better, more 
