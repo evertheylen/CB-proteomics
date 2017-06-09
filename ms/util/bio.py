@@ -1,5 +1,4 @@
-"""Various biology-related utilities and data, like FASTA parsing and trypsine.
-"""
+"""Various biology-related utilities and data, like FASTA parsing and trypsine."""
 
 from .etc import memoize
 
@@ -57,7 +56,7 @@ class _trypsine:
 def trypsine(missed_cleavages=0):
     return _trypsine(missed_cleavages)
 
-def peptide_weight(seq):
+def peptide_mass(seq):
     return sum(amino_weights[c] for c in seq) + water + proton
 
 
@@ -74,6 +73,9 @@ class Sequence:
     
     def __reversed__(self):
         return Sequence(self.name, ''.join(reversed(self.seq)))
+    
+    def __str__(self):
+        return self.name
     
     __slots__ = ('name', 'seq', 'weights', 'chunks')
     

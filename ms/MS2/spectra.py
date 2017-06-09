@@ -1,5 +1,4 @@
-"""MS2 spectra, theoretical ionization and database
-"""
+"""MS2 spectra, theoretical ionization and database"""
 
 import heapq
 from itertools import repeat, chain
@@ -15,31 +14,32 @@ class Ms2Spectrum:
 
 
 class TheoMs2Spectrum(Ms2Spectrum):
-    """Theoretical MS2 Spectrum
-    self.peaks is just a list of peak locations
+    """Theoretical MS2 Spectrum.
+    Here, self.peaks is just a list of peak locations.
     """
     
     @classmethod
     def from_sequence(cls, s, ionizer=None):
-        # For debugging purposes
+        """Not used in the analysis, useful for visualisation and comparison."""
         if ionizer is None:
             from .db import Ionizer
             ionizer = Ionizer()
         return cls(title=s,
-                   pepmass=peptide_weight(s),
+                   pepmass=peptide_mass(s),
                    peaks=ionizer(s))
     
     def __init__(self, title, pepmass, peaks):
         super().__init__(title, pepmass)
         self.peaks = sorted(peaks)
     
-    def plot(self):
+    def plot(self, color='red'):
         import matplotlib.pyplot as plt
-        plt.stem(self.peaks, [100]*len(self.peaks), 'red', label=self.title)
+        plt.stem(self.peaks, [50]*len(self.peaks), color, label=self.title)
+
 
 class ExpMs2Spectrum(Ms2Spectrum):
-    """Experimental MS2 Spectrum
-    self.peaks is a list of (location, intensity)
+    """Experimental MS2 Spectrum.
+    Here, self.peaks is a list of (location, intensity) tuples.
     """
     
     location = lambda t: t[0]
@@ -49,22 +49,14 @@ class ExpMs2Spectrum(Ms2Spectrum):
         super().__init__(title, pepmass)
         self.peaks = sorted(peaks, key=lambda t: t[0])
     
-    def plot(self):
+    def plot(self, color='blue'):
         import matplotlib.pyplot as plt
-        plt.stem([p[0] for p in self.peaks], [p[1] for p in self.peaks], 'blue', label=self.title)
-    
-    # Parsing
-    
-    @staticmethod
-    def _key_value(line):
-        parts = line.strip().split('=', 1)
-        if len(parts) < 2:
-            return None
-        return parts[0].strip().upper(), parts[1].strip()
+        plt.stem([p[0] for p in self.peaks], [p[1] for p in self.peaks], color, label=self.title)
     
     @classmethod
     @simple_progress('Loading MS2 spectra')
     def load_spectra(cls, fname, maximum=float('inf')) -> '[ExpMs2Spectrum]':
+        """Parse a MGF file"""
         spectra = []
         with open(fname) as f:
             lines = nice_lines(f)
@@ -89,3 +81,9 @@ class ExpMs2Spectrum(Ms2Spectrum):
                         break
         return spectra
 
+    @staticmethod
+    def _key_value(line):
+        parts = line.strip().split('=', 1)
+        if len(parts) < 2:
+            return None
+        return parts[0].strip().upper(), parts[1].strip()

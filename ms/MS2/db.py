@@ -8,6 +8,7 @@ from ms.util import *
 from ms.MS1 import ProteinDB
 from .spectra import *
 
+
 def create_ion(_extra_mass, reverse):
     '''Creates a function that returns the masses of the fragments 
     after MS2 fragmentation by some type of ion.'''
@@ -26,6 +27,7 @@ def create_ion(_extra_mass, reverse):
 y_ion = create_ion(water + proton, True)
 b_ion = create_ion(proton, False)
 
+
 class Ionizer:
     # In the future, more ionizers can be added
     def __init__(self, ions=(b_ion, y_ion)):
@@ -42,10 +44,9 @@ class ProteinDB2(Pickled):
     #default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016-small.fasta')
     default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
     
-    def __init__(self, fname = None, missed_cleavages=1, pep_tolerance=1.2):
+    def __init__(self, fname=None, missed_cleavages=1, pep_tolerance=1.2):
         fname = fname or self.default_file
         self.pep_tolerance = pep_tolerance
-        self.tandem_tolerance = tandem_tolerance
         
         # So far we don't do extensive analysis on the level of peptides.
         # Specifically, no analysis of the target/decoy kind is done. 
@@ -56,9 +57,8 @@ class ProteinDB2(Pickled):
         decoy_prot = ProteinDB(fname, missed_cleavages, reverse=True)
         self.decoys = set(decoy_prot.get_peptides())
         print(progress_start.format('Forming peptide list'), end='')
-        self.peptides = SortedCollection(self.targets | self.decoys, key=peptide_weight)
+        self.peptides = SortedCollection(self.targets | self.decoys, key=peptide_mass)
         print(progress_end.format('Forming peptide list'))
-        print("done targets")
     
     def find_best_proteins(self, sample: list, amount=10):
         raise NotImplemented("Protein inference isn't implemented")
@@ -74,9 +74,10 @@ class ProteinDB2(Pickled):
         for pep in candidate_peptides:
             tag = 'TARGET' if pep in self.targets else 'DECOY '
             tspec = TheoMs2Spectrum(title = tag + ' ' + pep,
-                                    pepmass = peptide_weight(pep),
+                                    pepmass = peptide_mass(pep),
                                     peaks = Ionizer.default(pep))
             yield (tspec.title, scorer.score(tspec, espec))
     
-    def find_best_peptides(self, tspec, scorer, amount=5):
+    def find_best_peptides(self, tspec, scorer, amount=10):
         return heapq.nlargest(amount, self.peptide_scores(tspec, scorer), key=lambda t: t[1])
+

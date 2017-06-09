@@ -1,6 +1,4 @@
-"""
-MS2 scoring functions
-"""
+"""MS2 scoring functions: Shared peaks and Sequest."""
 
 import heapq
 import math
@@ -8,6 +6,7 @@ from itertools import chain
 
 from .db import *
 from .spectra import *
+
 
 class Scorer:
     def __init__(self, tolerance):
@@ -39,8 +38,7 @@ class SharedPeaks(Scorer):
 
 
 class Sequest(Scorer):
-    """
-    Based on Eng1994 and Eng2008. Some differences:
+    """Based on Eng1994 and Eng2008. Some differences:
     
       - Theoretical spectra in the entire package don't have intensities, so this scoring algo
         is no different. Eng1994 specifies some constant intensities based on the type of ion.
@@ -49,9 +47,8 @@ class Sequest(Scorer):
         only use the main b and y ions, which are all considered to have (relative) 
         intensity 50.
         
-      - We don't group the spectra in 'unit-sized bins', although this *may* bring down
-        performance without actually improving accuracy. The y' is a sum of 151 other spectra
-        so we may still group them but in smaller bins.
+      - We don't (always) group/compress the spectra in 'unit-sized bins', currently we use
+        something like bins (but with more accuracy) of width tolerance/10.
     """
     
     def __init__(self, tolerance, num_windows=10, stepsize=1.0, steps=75):
@@ -97,21 +94,23 @@ class Sequest(Scorer):
                 i += 1
         
         new_espec = ExpMs2Spectrum(espec.title, espec.pepmass, ep)
-        # This is specific to Eng2008
+        # This is (very) specific to Eng2008
         new_espec.y_prime = self.y_prime(new_espec, compress)
         return new_espec
     
     def y_prime(self, espec, compress=True):
-        #  y'  =  y_0 - (sum(y_t for t in [-75..-1, 1..75])/150)
+        #  y' = y_0 - (sum(y_t for t in [-75..-1, 1..75])/150)
         shifts = chain(frange(-self.steps * self.stepsize, 0, self.stepsize),
                        frange(self.stepsize, (self.steps+1) * self.stepsize, self.stepsize))
         resized_int = [-p[1]/(2*self.steps) for p in espec.peaks]
-        shifted = sorted(sum(([(espec.peaks[i][0]+t, resized_int[i]) for i in range(len(espec.peaks))] for t in shifts), []), key=ExpMs2Spectrum.location)
+        shifted = sum(([(espec.peaks[i][0]+t, resized_int[i]) for i in range(len(espec.peaks))]
+                            for t in shifts), [])
         
         if compress:
             # Shifted produces way too many points. While mathematically still correct (since
             # our dot_product is just a big sum anyway), it takes too much time. So, time for
             # a minimum amount of 'binning'
+            shifted = sorted(shifted, key=ExpMs2Spectrum.location)
             locs = [shifted[0][0]]
             total = shifted[0][1]
             tol = self.tolerance / 10
@@ -132,12 +131,9 @@ class Sequest(Scorer):
             return sorted(espec.peaks + shifted, key=ExpMs2Spectrum.location)
         
     def score(self, tspec, espec):
-        """
-        This is basically the xcorr score. Eng2008 suggests using a better, more 
-        generic way of determining the score *based on* xcorr that is more 
-        usable in other contexts: E-value. xcorr is in fact sensitive to the 
-        spectrum used.
+        """This is basically the xcorr score. An alternative would be the 
+        E-value, as suggested by Eng2008. It's based on the xcorr yet vastly
+        more complex.
         """
         return dot_product(tspec.peaks, 50.0, espec.y_prime, self.tolerance)
-        
-        
+

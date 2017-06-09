@@ -41,8 +41,9 @@ try:
     for espec in progress_bar(sample, 'Calculating scores'):
         results.append((espec, db.find_best_peptides(espec, sp, amount=args.amount)))
     
-    print("\nResults")
-    print(  "=======")
+    print("")
+    print("Results")
+    print("=======")
     print("")
     
     for espec, scores in results:

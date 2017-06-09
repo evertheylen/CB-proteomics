@@ -1,10 +1,8 @@
-"""MS1 scoring, database and tests
+"""MS1 implementation. Unlike MS2, it's simple enough to be contained in a single file.
+Also includes a commandline interface.
 """
 
 import math
-"""MS1 implementation. Unlike MS2, it's simple enough to be contained in a single file.
-"""
-
 import random
 import heapq
 
@@ -31,6 +29,7 @@ def shared_peak(sample, weights, tolerance=1.2):
     
     return score
 
+
 def relative_shared_peak(sample, weights, tolerance=1.2):
     return shared_peak(sample, weights, tolerance)/len(weights)
 
@@ -45,10 +44,12 @@ class ProteinDB(Pickled):
         chunker = trypsine(missed_cleavages)
         for prot in progress_bar(self.proteins, 'Loading proteins' + (' in reverse' if reverse else '')):
             prot.chunks = list(chunker(prot.seq))
-            prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
+            prot.weights = sorted(set(peptide_mass(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10, tolerance=1.2):
-        scored = ((p, relative_shared_peak(sample, p.weights, tolerance)) 
+        if isinstance(sample, str):
+            sample = load_peaks(sample)
+        scored = ((p, relative_shared_peak(sample, p.weights, tolerance))
                   for p in progress_bar(self.proteins, 'Scoring proteins'))
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
     
@@ -56,11 +57,20 @@ class ProteinDB(Pickled):
         for prot in progress_bar(self.proteins, 'Loading peptides'):
             yield from prot.chunks
 
+
 if __name__ == '__main__':
-    import sys
-    sample = load_peaks(sys.argv[1])
-    db = ProteinDB()
-    print_scores(db.find_best_proteins(sample), lambda r: r.name[:70])
+    import argparse
+    parser = argparse.ArgumentParser(description='MS2 database search')
+    parser.add_argument('-d', '--database', help='FASTA file to use for the database', 
+                                            default=ProteinDB.default_file)
+    parser.add_argument('-a', '--amount', help='Amount of results', type=int, default=10)
+    parser.add_argument('-t', '--tolerance', help='Tolerance', type=float, default=1.2)
+    parser.add_argument('sample', help='PMF file')
+    args = parser.parse_args()
+    sample = load_peaks(args.sample)
+    db = ProteinDB(args.database)
+    print_scores(db.find_best_proteins(sample, args), lambda r: r.name[:70],
+                 amount=args.amount, tolerance=args.tolerance)
 
 
 

@@ -4,6 +4,7 @@ import sys
 
 # Monkey patching
 if "--all" in sys.argv:
+    print("No skipping")
     def no_skip(description):
         def wrapper(func):
             return func
