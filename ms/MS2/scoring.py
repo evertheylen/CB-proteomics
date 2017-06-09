@@ -17,7 +17,8 @@ class Scorer:
         raise NotImplemented("score is not overriden")
     
     # Define preproc_espec if there is a need for preprocessing
-    # def preproc_espec(self, espec: ExpMs2Spectrum): ...
+    def preprocess_espec(self, espec: ExpMs2Spectrum):
+        return espec
 
 
 class SharedPeaks(Scorer):

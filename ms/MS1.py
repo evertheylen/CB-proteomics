@@ -42,15 +42,19 @@ class ProteinDB(Pickled):
         fname = fname or self.default_file
         self.proteins = list(map((reversed if reverse else identity), read_fasta(fname)))
         
+        chunker = trypsine(missed_cleavages)
         for prot in progress_bar(self.proteins, 'Loading proteins' + (' in reverse' if reverse else '')):
-            prot.chunker = trypsine(missed_cleavages)
+            prot.chunks = list(chunker(prot.seq))
             prot.weights = sorted(set(peptide_weight(c) for c in prot.chunks))
     
     def find_best_proteins(self, sample, amount=10, tolerance=1.2):
         scored = ((p, relative_shared_peak(sample, p.weights, tolerance)) 
                   for p in progress_bar(self.proteins, 'Scoring proteins'))
         return heapq.nlargest(amount, scored, key=lambda t: t[1])
-
+    
+    def get_peptides(self):
+        for prot in progress_bar(self.proteins, 'Loading peptides'):
+            yield from prot.chunks
 
 if __name__ == '__main__':
     import sys
@@ -70,6 +74,6 @@ class MS1Test(unittest.TestCase):
         db = ProteinDB()
         sample = load_peaks(data_loc('PMF1.txt'))
         (r, score), = db.find_best_proteins(sample, 1)
-        self.assertEqual(r.id, 'sp|P07099|HYEP_HUMAN')
+        self.assertIn('sp|P07099|HYEP_HUMAN', r.name)
         self.assertAlmostEqual(score, 0.29545454545454547)
 

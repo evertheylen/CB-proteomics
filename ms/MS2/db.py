@@ -2,6 +2,7 @@
 """
 
 import heapq
+from itertools import chain
 
 from ms.util import *
 from ms.MS1 import ProteinDB
@@ -32,39 +33,50 @@ class Ionizer:
     
     def __call__(self, seq):
         return sum((ion(seq) for ion in self.ions), [])
+    
+# Ionizer can't be pickled, so for now we just use a default one
+Ionizer.default = Ionizer()
 
 
 class ProteinDB2(Pickled):
-    #default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
+    #default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016-small.fasta')
     default_file = data_loc('uniprot-human-reviewed-trypsin-november-2016.fasta')
     
-    def __init__(self, fname = None, missed_cleavages=1, ionizer=Ionizer()):
+    def __init__(self, fname = None, missed_cleavages=1, pep_tolerance=1.2):
         fname = fname or self.default_file
-        self.targets = ProteinDB(fname, missed_cleavages).proteins
-        self.decoys = ProteinDB(fname, missed_cleavages, reverse=True).proteins
-        # We already know the peptides, now we have to cut it up once more
-        self.tandem = {}
-        self._process_proteins(self.targets, 'TARGET', ionizer)
-        self._process_proteins(self.decoys, 'DECOY ', ionizer)
-    
-    def _process_proteins(self, proteins, tag, ionizer):
-        for prot in progress_bar(proteins, 'Splitting in ions, tagged `{}`'.format(tag)):
-            for peptide in prot.chunks:
-                if peptide not in self.tandem:
-                    self.tandem[peptide] = TheoMs2Spectrum(title = tag + ' ' + peptide,
-                                                           pepmass = peptide_weight(peptide),
-                                                           peaks = ionizer(peptide))
+        self.pep_tolerance = pep_tolerance
+        self.tandem_tolerance = tandem_tolerance
+        
+        # So far we don't do extensive analysis on the level of peptides.
+        # Specifically, no analysis of the target/decoy kind is done. 
+        # For simplicity, we leave peptides as simple strings and store
+        # the target/decoy info in sets (which are blazingly fast anyway)
+        target_prot = ProteinDB(fname, missed_cleavages)
+        self.targets = set(target_prot.get_peptides())
+        decoy_prot = ProteinDB(fname, missed_cleavages, reverse=True)
+        self.decoys = set(decoy_prot.get_peptides())
+        print(progress_start.format('Forming peptide list'), end='')
+        self.peptides = SortedCollection(self.targets | self.decoys, key=peptide_weight)
+        print(progress_end.format('Forming peptide list'))
+        print("done targets")
     
     def find_best_proteins(self, sample: list, amount=10):
         raise NotImplemented("Protein inference isn't implemented")
     
-    def peptides_scores(self, sample: list, scorer) -> '[(name, score)]':
-        if hasattr(scorer, 'preprocess_espec'):
-            sample = [scorer.preprocess_espec(espec) for espec in progress_bar(sample, "Preprocessing sample")]
+    def peptide_scores(self, espec, scorer) -> '[(name, score)]':
+        espec = scorer.preprocess_espec(espec)
         
-        for pep, tspec in progress_bar(self.tandem.items(), "Scoring peptides"):
-            for espec in sample:
-                yield (tspec.title, scorer.score(tspec, espec))
+        # First, filter on peptide mass
+        candidate_peptides = self.peptides.find_between(espec.pepmass - self.pep_tolerance,
+                                                        espec.pepmass + self.pep_tolerance)
+        
+        # Then, determine tandem scores
+        for pep in candidate_peptides:
+            tag = 'TARGET' if pep in self.targets else 'DECOY '
+            tspec = TheoMs2Spectrum(title = tag + ' ' + pep,
+                                    pepmass = peptide_weight(pep),
+                                    peaks = Ionizer.default(pep))
+            yield (tspec.title, scorer.score(tspec, espec))
     
-    def find_best_peptides(self, sample: list, scorer, amount=10):
-        return heapq.nlargest(amount, self.peptides_scores(sample, scorer), key=lambda t: t[1])
+    def find_best_peptides(self, tspec, scorer, amount=5):
+        return heapq.nlargest(amount, self.peptide_scores(tspec, scorer), key=lambda t: t[1])

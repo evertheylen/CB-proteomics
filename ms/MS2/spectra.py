@@ -11,7 +11,7 @@ from ms.MS1 import ProteinDB, shared_peak
 class Ms2Spectrum:
     def __init__(self, title, pepmass):
         self.title = title
-        self.pepmass = pepmass
+        self.pepmass = float(pepmass)
 
 
 class TheoMs2Spectrum(Ms2Spectrum):
@@ -83,7 +83,7 @@ class ExpMs2Spectrum(Ms2Spectrum):
                             location, intensity = peak.split()
                             peaks.append((float(location.strip()), float(intensity.strip())))
                     
-                    spectra.append(cls(metadata.pop('TITLE'), metadata.pop('PEPMASS'),
+                    spectra.append(cls(metadata.pop('TITLE'), metadata.pop('PEPMASS').split(' ')[0],
                                        peaks, **metadata))
                     if len(spectra) >= maximum:
                         break

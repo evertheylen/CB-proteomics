@@ -66,20 +66,16 @@ def peptide_weight(seq):
 # This means we can use PyPy and (hopefully) gain a considerable speedup.
 
 class Sequence:
-    def __init__(self, name, seq, weights=None, chunker=lambda s: [s]):
+    def __init__(self, name, seq, weights=None, chunks=None):
         self.name = name
         self.seq = seq
         self.weights = weights
-        self.chunker = chunker
-    
-    @property
-    def chunks(self):
-        yield from self.chunker(self.seq)
+        self.chunks = chunks
     
     def __reversed__(self):
-        return Sequence(self.name, list(reversed(self.seq)), chunker=self.chunker)
+        return Sequence(self.name, ''.join(reversed(self.seq)))
     
-    __slots__ = ('name', 'seq', 'chunker', 'weights')
+    __slots__ = ('name', 'seq', 'weights', 'chunks')
     
 
 def read_fasta(filename):
